@@ -1,0 +1,6 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Log generado en cada ejecución
+logs/*.log
