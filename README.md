@@ -56,4 +56,4 @@ CAUSA   | ServicioNoDisponibleError: El servicio S001 ya está ocupado.
 
 ## Equipo
 
-Integrantes: _(completar con los cinco estudiantes del grupo)_
+Integrantes: _ILEAN XAVIER SALAS JAIMES_
