@@ -208,3 +208,78 @@ class Servicio(EntidadSistema):
         return f"{self.describir()} | ${self._tarifa_hora:,.0f}/h | {estado}"
 
 
+class ReservaSala(Servicio):
+    """Servicio de reserva de salas: duración 1-12 h e incluye capacidad."""
+
+    DURACION_MIN, DURACION_MAX = 1, 12  # Rango propio de las salas
+
+    def __init__(self, id_servicio=None, nombre=None, tarifa_hora=None, capacidad=None) -> None:
+        """Construye la sala; valida además la capacidad."""
+        super().__init__(id_servicio, nombre, tarifa_hora)  # Valida los datos comunes
+        capacidad = _requerido(capacidad, "capacidad")  # La capacidad es obligatoria
+        # Debe ser entero positivo (y no booleano)
+        if not isinstance(capacidad, int) or isinstance(capacidad, bool) or capacidad <= 0:
+            raise DatosInvalidosError(f"Capacidad inválida: {capacidad!r}.")
+        self._capacidad = capacidad  # Número de personas que caben
+
+    def validar_parametros(self, duracion) -> None:
+        """Valida la duración contra el rango de salas (1-12 h)."""
+        self._validar_duracion(duracion)
+
+    def describir(self) -> str:
+        """Descripción específica de una sala."""
+        return f"Sala '{self._nombre}' [{self._id}] para {self._capacidad} personas"
+
+
+class AlquilerEquipo(Servicio):
+    """Servicio de alquiler de equipos: 2-72 h, con gama y seguro obligatorio."""
+
+    DURACION_MIN, DURACION_MAX = 2, 72  # Rango propio de equipos
+    GAMAS = ("BASICA", "MEDIA", "ALTA")  # Gamas permitidas
+    PORCENTAJE_SEGURO = 0.05  # El seguro obligatorio es el 5 % del costo base
+
+    def __init__(self, id_servicio=None, nombre=None, tarifa_hora=None, gama=None) -> None:
+        """Construye el equipo; valida además la gama."""
+        super().__init__(id_servicio, nombre, tarifa_hora)  # Datos comunes
+        gama = _requerido(gama, "gama")  # La gama es obligatoria
+        if str(gama).upper() not in self.GAMAS:  # Debe estar en la lista permitida
+            raise DatosInvalidosError(f"Gama inválida '{gama}'. Use {self.GAMAS}.")
+        self._gama = str(gama).upper()  # Se guarda en mayúsculas
+
+    def validar_parametros(self, duracion) -> None:
+        """Valida la duración contra el rango de equipos (2-72 h)."""
+        self._validar_duracion(duracion)
+
+    def calcular_costo(self, duracion=None, impuesto=0.19, descuento=0.0, recargo_extra=0.0) -> float:
+        """SOBRESCRIBE el cálculo: agrega el seguro obligatorio como recargo adicional."""
+        horas = self.DURACION_MIN if duracion is None else duracion  # Duración efectiva
+        self.validar_parametros(horas)  # Se valida antes de calcular el seguro
+        seguro = self._tarifa_hora * horas * self.PORCENTAJE_SEGURO  # 5 % del costo base
+        # Se reutiliza el cálculo de la clase padre sumando el seguro al recargo
+        return super().calcular_costo(horas, impuesto, descuento, recargo_extra + seguro)
+
+    def describir(self) -> str:
+        """Descripción específica de un equipo."""
+        return f"Equipo '{self._nombre}' [{self._id}] gama {self._gama} (seguro obligatorio 5%)"
+
+
+class AsesoriaEspecializada(Servicio):
+    """Servicio de asesoría: duración 1-8 h, con área de especialidad."""
+
+    DURACION_MIN, DURACION_MAX = 1, 8  # Rango propio de asesorías
+
+    def __init__(self, id_servicio=None, nombre=None, tarifa_hora=None, especialidad=None) -> None:
+        """Construye la asesoría; valida además la especialidad."""
+        super().__init__(id_servicio, nombre, tarifa_hora)  # Datos comunes
+        # La especialidad es obligatoria; se guarda sin espacios sobrantes
+        self._especialidad = str(_requerido(especialidad, "especialidad")).strip()
+
+    def validar_parametros(self, duracion) -> None:
+        """Valida la duración contra el rango de asesorías (1-8 h)."""
+        self._validar_duracion(duracion)
+
+    def describir(self) -> str:
+        """Descripción específica de una asesoría."""
+        return f"Asesoría '{self._nombre}' [{self._id}] en {self._especialidad}"
+
+
