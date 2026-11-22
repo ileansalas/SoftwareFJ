@@ -283,3 +283,100 @@ class AsesoriaEspecializada(Servicio):
         return f"Asesoría '{self._nombre}' [{self._id}] en {self._especialidad}"
 
 
+# =============================================================================
+# RESERVA
+# =============================================================================
+class EstadoReserva(Enum):
+    """Estados posibles de una reserva."""
+
+    PENDIENTE = "PENDIENTE"  # Creada pero aún sin confirmar
+    CONFIRMADA = "CONFIRMADA"  # Confirmada: el servicio queda ocupado
+    CANCELADA = "CANCELADA"  # Cancelada: el servicio se libera
+    PROCESADA = "PROCESADA"  # Procesada: costo final calculado y reserva cerrada
+
+
+class Reserva(EntidadSistema):
+    """Integra un cliente, un servicio, la duración y el estado."""
+
+    def __init__(self, id_reserva, cliente, servicio, duracion, **opciones_costo) -> None:
+        """Crea la reserva en estado PENDIENTE tras validar todos sus componentes."""
+        if not isinstance(cliente, Cliente):  # El cliente debe ser un objeto Cliente
+            raise ReservaInvalidaError("La reserva requiere un Cliente válido.")
+        if not isinstance(servicio, Servicio):  # El servicio debe ser un objeto Servicio
+            raise ReservaInvalidaError("La reserva requiere un Servicio válido.")
+        servicio.validar_parametros(duracion)  # Valida la duración según el tipo de servicio
+        self.__id = id_reserva  # Identificador de la reserva (privado)
+        self.__cliente = cliente  # Cliente que reserva
+        self.__servicio = servicio  # Servicio reservado
+        self.__duracion = duracion  # Horas reservadas
+        self.__estado = EstadoReserva.PENDIENTE  # Estado inicial
+        self.__opciones_costo = dict(opciones_costo)  # Impuesto/descuento/recargo que se usarán al procesar
+        # Costo calculado con polimorfismo (puede lanzar CalculoInconsistenteError)
+        self.__costo = servicio.calcular_costo(duracion, **opciones_costo)
+
+    @property
+    def identificador(self) -> str:
+        """Id de la reserva."""
+        return str(self.__id)
+
+    @property
+    def cliente(self) -> Cliente:
+        """Cliente de la reserva."""
+        return self.__cliente
+
+    @property
+    def servicio(self) -> Servicio:
+        """Servicio de la reserva."""
+        return self.__servicio
+
+    @property
+    def estado(self) -> EstadoReserva:
+        """Estado actual de la reserva."""
+        return self.__estado
+
+    @property
+    def costo(self) -> float:
+        """Costo total calculado."""
+        return self.__costo
+
+    def confirmar(self) -> None:
+        """Confirma la reserva y marca el servicio como no disponible."""
+        if self.__estado is not EstadoReserva.PENDIENTE:  # Solo se confirma desde PENDIENTE
+            raise OperacionNoPermitidaError(
+                f"Solo se confirma una reserva PENDIENTE (actual: {self.__estado.value})."
+            )
+        self.__servicio.ocupar()  # Puede lanzar ServicioNoDisponibleError si ya está ocupado
+        self.__estado = EstadoReserva.CONFIRMADA  # Solo se llega aquí si ocupar() funcionó
+
+    def procesar(self, **opciones_costo) -> float:
+        """Procesa la reserva: recalcula el costo final y la cierra (estado PROCESADA).
+
+        Acepta opciones opcionales (impuesto, descuento, recargo_extra) que sustituyen
+        a las indicadas al crear la reserva.
+        """
+        if self.__estado is not EstadoReserva.CONFIRMADA:  # Solo se procesa una reserva CONFIRMADA
+            raise OperacionNoPermitidaError(
+                f"Solo se procesa una reserva CONFIRMADA (actual: {self.__estado.value})."
+            )
+        opciones = {**self.__opciones_costo, **opciones_costo}  # Las nuevas opciones tienen prioridad
+        total = self.__servicio.calcular_costo(self.__duracion, **opciones)  # Puede lanzar CalculoInconsistenteError
+        self.__costo = total  # Solo si el cálculo fue válido se actualiza el costo
+        self.__estado = EstadoReserva.PROCESADA  # Nuevo estado: reserva cerrada
+        return total
+
+    def cancelar(self) -> None:
+        """Cancela la reserva y libera el servicio si estaba confirmada."""
+        if self.__estado is EstadoReserva.CANCELADA:  # No se puede cancelar dos veces
+            raise OperacionNoPermitidaError("La reserva ya estaba cancelada.")
+        if self.__estado is EstadoReserva.PROCESADA:  # Una reserva procesada ya no se cancela
+            raise OperacionNoPermitidaError("No se puede cancelar una reserva ya procesada.")
+        if self.__estado is EstadoReserva.CONFIRMADA:  # Si estaba confirmada, el servicio estaba ocupado
+            self.__servicio.liberar()  # Se devuelve la disponibilidad
+        self.__estado = EstadoReserva.CANCELADA  # Nuevo estado
+
+    def resumen(self) -> str:
+        """Descripción corta de la reserva."""
+        return (
+            f"Reserva[{self.__id}] {self.__cliente.nombre} -> {self.__servicio.nombre} "
+            f"{self.__duracion}h | ${self.__costo:,.2f} | {self.__estado.value}"
+        )
