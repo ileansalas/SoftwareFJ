@@ -45,3 +45,66 @@ class EntidadSistema(ABC):
         return self.resumen()  # Polimorfismo: cada subclase aporta su propio resumen
 
 
+# =============================================================================
+# ENCAPSULACIÓN: Cliente
+# =============================================================================
+class Cliente(EntidadSistema):
+    """Cliente con atributos privados y validaciones estrictas en sus setters."""
+
+    def __init__(self, id_cliente=None, nombre=None, correo=None, telefono=None) -> None:
+        """Construye el cliente validando cada dato recibido."""
+        self.__id = _requerido(id_cliente, "id_cliente")  # Atributo privado: el id no tiene setter
+        self.nombre = nombre  # Usa el setter de nombre (valida)
+        self.correo = correo  # Usa el setter de correo (valida con regex)
+        self.telefono = telefono  # Usa el setter de teléfono (valida)
+
+    @property
+    def identificador(self) -> str:
+        """Devuelve el id del cliente (solo lectura)."""
+        return str(self.__id)
+
+    @property
+    def nombre(self) -> str:
+        """Devuelve el nombre del cliente."""
+        return self.__nombre
+
+    @nombre.setter
+    def nombre(self, valor) -> None:
+        """Asigna el nombre; exige mínimo 3 caracteres."""
+        valor = _requerido(valor, "nombre")  # Debe existir y no estar vacío
+        if len(str(valor).strip()) < 3:  # Regla: mínimo 3 caracteres
+            raise DatosInvalidosError(f"Nombre demasiado corto: '{valor}'.")
+        self.__nombre = str(valor).strip()  # Guarda el nombre sin espacios sobrantes
+
+    @property
+    def correo(self) -> str:
+        """Devuelve el correo del cliente."""
+        return self.__correo
+
+    @correo.setter
+    def correo(self, valor) -> None:
+        """Asigna el correo; exige formato válido según la expresión regular."""
+        valor = _requerido(valor, "correo")  # Debe existir
+        if not PATRON_CORREO.match(str(valor).strip()):  # Compara con el patrón de correo
+            raise DatosInvalidosError(f"Correo con formato inválido: '{valor}'.")
+        self.__correo = str(valor).strip().lower()  # Se normaliza a minúsculas
+
+    @property
+    def telefono(self) -> str:
+        """Devuelve el teléfono del cliente."""
+        return self.__telefono
+
+    @telefono.setter
+    def telefono(self, valor) -> None:
+        """Asigna el teléfono; debe ser numérico y de al menos 7 dígitos."""
+        valor = _requerido(valor, "telefono")  # Debe existir
+        texto = str(valor).strip()  # Se trabaja como texto sin espacios
+        if not (texto.isdigit() and len(texto) >= 7):  # Solo dígitos y largo mínimo 7
+            raise DatosInvalidosError(f"Teléfono inválido: '{valor}'.")
+        self.__telefono = texto  # Guarda el teléfono validado
+
+    def resumen(self) -> str:
+        """Descripción corta del cliente."""
+        return f"Cliente[{self.identificador}] {self.nombre} <{self.correo}> Tel:{self.telefono}"
+
+
